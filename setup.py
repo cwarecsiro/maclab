@@ -19,5 +19,7 @@ setup(name='maclab',
           'numpy',
           'operator',
           'functools'
-      ]
+      ],
+      test_suite='nose.collector',
+      tests_require=['nose'],
       zip_safe=False)
