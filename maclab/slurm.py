@@ -1,6 +1,7 @@
 import subprocess, getpass
 from subprocess import call
 import datetime
+import sys, os, re
 
 class Jid:
     

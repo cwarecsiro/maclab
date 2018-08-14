@@ -18,6 +18,7 @@ Todo:
 import numpy as np
 import rasterio, warnings
 import rasterio.transform
+from rasterio.transform import guard_transform
 from rasterio.crs import CRS
 
 class Raster(object):
@@ -106,7 +107,7 @@ class Raster(object):
             m['height'] = self.shape[0]
             m['width'] = self.shape[1]
             m['count'] = self.nbands
-            if comression is not None:
+            if compression is not None:
                 m['compression'] = None
         return(m)
 
@@ -194,7 +195,7 @@ class Raster(object):
                 output.tags = d
             if len(self.array.shape) > 2 and self.nbands > 1:
                 for b in range(self.nbands):
-                    output.write(self.array[:, :, b + 1].\
+                    output.write(self.array[:, :, b].\
                                 astype(self.meta['dtype']), b + 1)
             else:
                 output.write(self.array.astype(self.meta['dtype']), 1)
