@@ -1,0 +1,16 @@
+MANIFEST.in
+README.rst
+maclab/__init__.py
+maclab/colours.py
+maclab/file.py
+maclab/slurm.py
+maclab/spatial.py
+maclab/terraconformer.py
+maclab/timeseries_highlights.py
+maclab/utils.py
+maclab.egg-info/PKG-INFO
+maclab.egg-info/SOURCES.txt
+maclab.egg-info/dependency_links.txt
+maclab.egg-info/not-zip-safe
+maclab.egg-info/requires.txt
+maclab.egg-info/top_level.txt

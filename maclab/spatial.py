@@ -20,6 +20,8 @@ import rasterio, warnings
 import rasterio.transform
 from rasterio.transform import guard_transform
 from rasterio.crs import CRS
+from affine import Affine
+import math, os, re, sys
 
 class Raster(object):
     """ 
@@ -48,11 +50,12 @@ class Raster(object):
     
     """
 
-    def __init__(self, raster, affine=None, nodata=None, band=None, driver = None, crs = None):
+    def __init__(self, raster, affine=None, nodata=None, band=None, driver = None, crs = None, variable = None):
         self.array = None
         self.src = None
         self.driver = None
         self.crs = None
+        self.variable = variable
 
         if isinstance(raster, np.ndarray):
             if affine is None:
@@ -75,7 +78,10 @@ class Raster(object):
             self.dtype = raster.dtype
                         
         else:
-            self.src = rasterio.open(raster, 'r')
+            if self.variable:
+                self.src = rasterio.open('netcdf:{0}:{1}'.format(raster, variable), 'r')
+            else:
+                self.src = rasterio.open(raster, 'r')
             self.affine = guard_transform(self.src.transform)
             self.shape = (self.src.height, self.src.width)
             if nodata is not None:
@@ -117,6 +123,7 @@ class Raster(object):
         
         # TODO: Generalise to work on arrays so the operation is vectorised
         col, row = [math.floor(a) for a in (~self.affine * (x, y))]
+        #col, row = [math.ceil(a) for a in (~self.affine * (x, y))]
         return row, col
 
     def read(self, extent=None, window=None, masked=False):
@@ -140,16 +147,16 @@ class Raster(object):
             raise ValueError("Specify either bounds or window")
 
         if extent:
-            win = bounds_window(extent, self.affine)
+            win = bounds_window(extent, self.src.transform)
         if window:
             win = window
         
         if extent or window:
-            c, _, _, f = window_bounds(win, self.affine)  # c ~ west, f ~ north
+            c, _, _, f = window_bounds(win, self.src.transform)  # c ~ west, f ~ north
             a, b, _, d, e, _, _, _, _ = tuple(self.affine)
             aff = Affine(a, b, c, d, e, f)
 
-        elif self.src:
+        if self.src:
             # It's an open rasterio dataset
             if window:
                 if self.band:
@@ -183,7 +190,7 @@ class Raster(object):
                     new_array = np.dstack(bands)
                     aff = self.src.transform
 
-        return Raster(new_array, aff, self.nodata)
+        return Raster(new_array.squeeze(), aff, self.nodata)
     
     def write(self, filepath, tags = None):
         """Generalise for ESRI flt grids etc"""
@@ -285,19 +292,23 @@ def window_bounds(window, affine):
     e, n = (col_stop, row_start) * affine
     return w, s, e, n
 
-def stack(filepaths):
+def stack(filepaths, checks = True):
     """Simple wrapper to stack consistent data sources."""
-    objs = [sp.Raster(i) for i in filepaths]
-    # cursory checks
-    check_aff = all([i.affine for i in objs])
-    check_shp = all([i.shape for i in objs])
-    check_na = all([i.nodata for i in objs])
-    if check_aff and check_na and check_na:
-        dat = np.dstack([i.read().array for i in objs])
-        return(sp.Raster(dat, objs[0].affine, objs[0].nodata))
+    objs = [Raster(i) for i in filepaths]
+    if checks:
+        # cursory checks
+        check_aff = all([i.affine for i in objs])
+        check_shp = all([i.shape for i in objs])
+        check_na = all([i.nodata for i in objs])
+        if check_aff and check_na and check_na:
+            dat = np.dstack([i.read().array for i in objs])
+            return(Raster(dat, objs[0].affine, objs[0].nodata))
+        else:
+            print('Not all files are consistent')
     else:
-        print('Not all files are consistent')
-        
+        dat = np.dstack([i.read().array.squeeze() for i in objs])
+        return(Raster(dat, objs[0].affine, objs[0].nodata))
+    
 def default_transform(arr):
     """Generate a default global affine from an array."""
     cols, rows = arr.shape[0], arr.shape[1]
@@ -320,3 +331,54 @@ def write_meta(filepath):
         output.write('%s: %s\n' %(key, value))
     output.close
     f.close()
+
+
+def array_bounds(height, width, transform):
+    """Return the bounds of an array given height, width, and a transform.
+    Return the `west, south, east, north` bounds of an array given
+    its height, width, and an affine transform.
+    """
+    w, n = transform.xoff, transform.yoff
+    e, s = transform * (width, height)
+    return w, s, e, n
+
+def write_flt(arr, meta, filename, dtype = rasterio.float32):
+    """  
+    Parameters:
+    - arr: np.array
+    - meta: template for the raster metadata (rasterio format)
+    - filename: file name/path to write to.  
+    """
+    # update driver
+    if meta['driver'] != 'EHdr':
+        meta['driver'] = 'EHdr'
+    # update dtype
+    meta['dtype'] = dtype
+    # check filepath format
+    m = os.path.splitext(filename)[1]
+    if len(m) == 4 :
+        if m != '.flt':
+            filename = filename[:-4] + '.flt'
+    else:
+        filename = filename + '.flt'
+    # write
+    with rasterio.open(filename, 'w', **meta) as out:
+        out.write(arr.astype(dtype), 1)
+    # change hdr
+    hdr_path = filename[:-4] + '.hdr'
+    
+    # check if hdr exists
+    
+    # write hdr
+    r, c = arr.shape
+    llx, lly = array_bounds(r, c, meta['transform'])[0:2]
+
+    with open(hdr_path, 'w') as hdr:
+        hdr.write('ncols\t{}\n'.format(c))
+        hdr.write('nrows\t{}\n'.format(r))
+        hdr.write('xllcorner\t%.16f\n' % (llx))
+        hdr.write('yllcorner\t%.16f\n' % (lly))
+        hdr.write('cellsize\t%.16f\n' % (meta['transform'][0]))
+        hdr.write('NODATA_value\t{}\n'.format(meta['nodata']))
+        hdr.write('byteorder\tLSBFIRST\n')
+    hdr.close()

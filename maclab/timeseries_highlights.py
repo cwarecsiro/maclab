@@ -1,12 +1,12 @@
 """
 Time series highlights
 
-Module to help process time series arrays and, in particular, to help
-visualise areas of change in time series data. 
+Module to help process time series arrays an dvisualise areas of  
+change in time series data. 
 
 Routines available:
     - simple differences between timesteps
-    - calculate natural breaks (jenks) between time steps to optimize
+    - calculate jenks breaks between time steps to optimize
       visualisation of regions of change
     - colouring array(s) using natural breaks to highlight areas of change  
 """
@@ -59,7 +59,7 @@ class TimeSeries(object):
                  deltas = None, breaks = None):
     
         if isinstance(arrays, list):
-            ## assume filepaths
+            # assume filepaths
             self.src = arrays
             self.arr = None
             self.affine = None
@@ -193,7 +193,7 @@ class TimeSeries(object):
                 rmn, cmx = np.unravel_index(
                     self.deltas[:, :, a].argmin(), \
                     (self.array[:, :, 0].shape))
-                        rmx, cmx = np.unravel_index(
+                rmx, cmx = np.unravel_index(
                     self.deltas[:, :, a].argmax(), \
                             (self.array[:, :, 0].shape))
                 rs = np.hstack([rmn, rs, rmx])
@@ -292,7 +292,7 @@ class TimeSeries(object):
         return(rgb)
     
 def highlights(obj, K, cols, k = 20, N = None, background_breaks = 'linear', 
-               quantile = 0.95 sample = 100000, force_bounds = None):
+               quantile = 0.95, sample = 100000, force_bounds = True):
     """ 
     Parameters:
     -----------
@@ -309,5 +309,9 @@ def highlights(obj, K, cols, k = 20, N = None, background_breaks = 'linear',
     """
     x = TimeSeries(obj)
     x.calc_deltas()
-    x.calc_breaks(K, sample)
+    if force_bounds:
+        bounds = x.ts_range
+        x.calc_breaks(K, sample, force_bounds = bounds)
+    else:
+        x.calc_breaks(K, sample)
     return(x.colour(cols, N))

@@ -17,7 +17,7 @@ def readfile(filepath):
 def which(x, op, val):
     mappings = {'<': operator.lt, '<=': operator.le,
                 '==': operator.eq, '>': operator.gt,
-               '>=': operator.ge} 
+               '>=': operator.ge, '!=': operator.ne} 
     return([i for i, x in enumerate(x) if mappings[op](x, val) ])
 
 def asnumber(number, dtype = 'float32'):

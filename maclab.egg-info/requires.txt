@@ -1,0 +1,6 @@
+rasterio
+warnings
+jenkspy
+numpy
+operator
+functools
