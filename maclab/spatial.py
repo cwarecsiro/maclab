@@ -117,6 +117,9 @@ class Raster(object):
                 m['compression'] = None
         return(m)
 
+    @property
+    def extent(self):
+        return(rasterio.transform.array_bounds(self.shape[0], self.shape[1], self.affine))
 
     def xy_rc(self, x, y):
         """ Given (x, y) in crs, return the (row, column) on the raster"""
